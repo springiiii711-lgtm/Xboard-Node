@@ -5,6 +5,12 @@
 !cmd/**
 !internal/
 !internal/**
+# Synthetic fixture used by the real runtime config parser test.
+!ops/
+!ops/private-node/
+!ops/private-node/tests/
+!ops/private-node/tests/fixtures/
+!ops/private-node/tests/fixtures/config.json
 !ci/
 !ci/**
 !README.md

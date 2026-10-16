@@ -39,3 +39,5 @@ Go/Alpine 使用版本标签，未声明核验过的固定镜像 digest，后续
 新建独立仓库首次推送时，GitHub 未注册仅含手动事件的工作流。为完成注册，增加仅匹配该 workflow 文件的 push 事件；`validate` job 强制要求 `workflow_dispatch`，因此 push 只注册流程并显示 skipped，不执行 runner。实际构建仍必须手动触发。
 
 经用户另行批准，新增独立的私有 GHCR 发布流程，见 [GHCR.zh-CN.md](GHCR.zh-CN.md)。本文原有的“不发布”边界描述仍适用于 `checkout-build.yml`，发布仅由 `ghcr-publish.yml` 手动触发。
+
+自建私有镜像安装定制层及非部署测试见 [ops/private-node](../ops/private-node/README.zh-CN.md)。

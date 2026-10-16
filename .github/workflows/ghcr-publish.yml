@@ -44,6 +44,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           python3 -B ci/validate.py
+          python3 -B -m unittest discover -s ops/private-node/tests -p "test_*.py" -v
           python3 -B -m unittest discover -s ci -p test_ghcr.py -v
 
       - name: Check private repository and target package before building
@@ -76,6 +77,11 @@ jobs:
 
       - name: Check source identity and run offline before publication
         run: python3 -B ci/ghcr.py check-local
+      - name: Verify installer with network-disabled disposable fixture containers
+        env:
+          CI_SAFE_DOCKER_TESTS: "1"
+        run: |
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_TEMP,GITHUB_RUN_ID,GITHUB_SHA,CI_SAFE_DOCKER_TESTS python3 -B ci/installer-container-check.py --image "$IMAGE:$TAG"
       - name: Recheck private package and immutable tag immediately before push
         id: state
         env:

@@ -37,6 +37,7 @@ jobs:
           GOTOOLCHAIN: local
         run: |
           python3 ci/validate.py
+          python3 -B -m unittest discover -s ops/private-node/tests -p "test_*.py" -v
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           go run -mod=readonly ./ci/check-workflow.go .github/workflows/checkout-build.yml .github/workflows/ci.yml
       - name: Set up Buildx
@@ -53,6 +54,11 @@ jobs:
           tags: local/xboard-node-checkout:${{ github.sha }}
           build-args: |
             SOURCE_REVISION=${{ github.sha }}
+      - name: Verify installer with network-disabled disposable fixture containers
+        env:
+          CI_SAFE_DOCKER_TESTS: "1"
+        run: |
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_TEMP,GITHUB_RUN_ID,GITHUB_SHA,CI_SAFE_DOCKER_TESTS python3 -B ci/installer-container-check.py --image "local/xboard-node-checkout:$GITHUB_SHA"
       - name: Offline version check and local packaging
         run: |
           image="local/xboard-node-checkout:$GITHUB_SHA"
