@@ -1,0 +1,8 @@
+{
+  "panel": {"url": "https://panel.example.test"},
+  "machine": {"machine_id": 42, "token": "SYNTHETIC_MACHINE_TOKEN_0123456789"},
+  "kernel": {"type": "singbox", "config_dir": "/var/lib/xboard-node/kernel"},
+  "cert": {"cert_dir": "/var/lib/xboard-node/certs"},
+  "log": {"level": "info", "output": "stdout"},
+  "health_port": 0
+}

@@ -35,3 +35,6 @@ cmd/xboard-node-bench
 
 # Local inspection, dependency caches, and reports
 /local-review/
+
+# Public synthetic test data; never a deployment credential file.
+!/ops/private-node/tests/fixtures/config.json
