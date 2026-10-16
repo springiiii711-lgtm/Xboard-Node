@@ -66,7 +66,16 @@ def validate_package(data, ctx):
     require(data.get('name') == ctx['package'] and data.get('package_type') == 'container', 'Package identity mismatch')
     require(data.get('owner', {}).get('login') == OWNER, 'Package owner mismatch')
     require(data.get('visibility') == 'private', 'Package is not private; do not change visibility automatically')
-    require((data.get('repository') or {}).get('full_name') == ctx['repository'], 'Existing package is not linked to this repository; stop without overwriting it')
+    linked = data.get('repository') or {}
+    expected_id = ctx.get('repository_id')
+    require(isinstance(expected_id, int) and expected_id > 0, 'Canonical repository ID is missing')
+    require(linked.get('id') == expected_id,
+            f"Package repository ID mismatch: received {linked.get('id')!r}, expected {expected_id}; stop without changing access")
+    # Installation-token responses may omit optional full_name. The repository
+    # ID comes from an independent private-repository API check and is immutable.
+    if linked.get('full_name'):
+        require(linked['full_name'].lower() == ctx['repository'].lower(),
+                f"Package repository name conflicts with verified ID: {linked['full_name']}")
 
 
 def tagged_digest(versions, tag):
@@ -79,7 +88,9 @@ def tagged_digest(versions, tag):
 
 
 def package_state(ctx):
-    validate_repository(api('/repos/' + ctx['repository']), ctx)
+    repository = api('/repos/' + ctx['repository'])
+    validate_repository(repository, ctx)
+    ctx['repository_id'] = repository['id']
     path = f"/users/{OWNER}/packages/container/{ctx['package']}"
     package = api(path, missing_ok=True)
     if package is None:
@@ -169,7 +180,7 @@ def main():
     reference = f"{ctx['image']}@{digest}"
     image_id = check_image(ctx, reference, digest)
     verify_anonymous_denied(reference)
-    evidence = {'package_url': package['html_url'], 'visibility': package['visibility'], 'repository': ctx['repository'], 'source_sha': ctx['sha'], 'tag_reference': f"{ctx['image']}:{ctx['tag']}", 'digest_reference': reference, 'digest': digest, 'image_id': image_id, 'authenticated_pull': 'passed on a fresh runner', 'anonymous_manifest_access': 'denied', 'offline_runtime': 'passed'}
+    evidence = {'package_url': package['html_url'], 'visibility': package['visibility'], 'repository': ctx['repository'], 'linked_repository_id': ctx['repository_id'], 'source_sha': ctx['sha'], 'tag_reference': f"{ctx['image']}:{ctx['tag']}", 'digest_reference': reference, 'digest': digest, 'image_id': image_id, 'authenticated_pull': 'passed on a fresh runner', 'anonymous_manifest_access': 'denied', 'offline_runtime': 'passed'}
     print(json.dumps(evidence, indent=2))
     Path(os.environ['RUNNER_TEMP'], 'ghcr-verification.json').write_text(json.dumps(evidence, indent=2) + '\n', encoding='utf-8')
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as stream:

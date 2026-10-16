@@ -33,3 +33,5 @@ Actions 不上传 artifacts、build record 或持久缓存。镜像保存在私�
 - [GHCR 默认私有、短期 token 与来源标签](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
 - [包访问控制与仓库关联](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
 - [GitHub Packages 计费](https://docs.github.com/en/billing/concepts/product-billing/github-packages)
+
+包关联核验以仓库 API 返回的不可变 repository ID 为准，并要求包元数据中的 repository.id 相同；可选的 full_name 如返回也必须一致。这样可处理不同令牌返回的精简元数据，不能接受未关联或关联其他仓库的包。

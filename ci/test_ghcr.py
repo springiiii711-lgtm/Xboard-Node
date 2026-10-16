@@ -6,7 +6,8 @@ from ghcr import context, tagged_digest, validate_image_metadata, validate_packa
 class PublicationGuards(unittest.TestCase):
     def setUp(self):
         self.ctx = context('springiiii711-lgtm/Xboard', 'a' * 40)
-        self.package = {'name': 'xboard', 'package_type': 'container', 'owner': {'login': 'springiiii711-lgtm'}, 'visibility': 'private', 'repository': {'full_name': self.ctx['repository']}}
+        self.ctx['repository_id'] = 1234
+        self.package = {'name': 'xboard', 'package_type': 'container', 'owner': {'login': 'springiiii711-lgtm'}, 'visibility': 'private', 'repository': {'id': 1234, 'full_name': self.ctx['repository']}}
 
     def test_only_approved_repositories_and_full_commits(self):
         for repo, sha in [('other/Xboard', 'a' * 40), (self.ctx['repository'], 'a' * 7), (self.ctx['repository'], 'main')]:
@@ -25,6 +26,12 @@ class PublicationGuards(unittest.TestCase):
         for key, value in [('visibility', 'public'), ('repository', None), ('repository', {'full_name': 'springiiii711-lgtm/unrelated'}), ('owner', {'login': 'other'}), ('name', 'unrelated')]:
             with self.subTest(key=key, value=value), self.assertRaises(RuntimeError):
                 validate_package(self.package | {key: value}, self.ctx)
+
+    def test_repository_id_handles_reduced_metadata_without_accepting_other_packages(self):
+        validate_package(self.package | {'repository': {'id': 1234}}, self.ctx)
+        for linked in [{}, {'id': 5678}, {'id': 1234, 'full_name': 'other/unrelated'}]:
+            with self.subTest(linked=linked), self.assertRaises(RuntimeError):
+                validate_package(self.package | {'repository': linked}, self.ctx)
 
     def test_existing_tag_resolves_to_one_immutable_digest(self):
         item = {'name': 'sha256:' + 'b' * 64, 'metadata': {'container': {'tags': [self.ctx['tag']]}}}
