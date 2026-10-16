@@ -1,5 +1,9 @@
 name: Checkout build - no publication
 "on":
+  # Register this workflow on imported repositories; push never runs a job.
+  push:
+    paths:
+      - .github/workflows/checkout-build.yml
   workflow_dispatch:
 
 permissions:
@@ -14,6 +18,7 @@ concurrency:
 
 jobs:
   validate:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:

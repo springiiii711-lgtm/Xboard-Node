@@ -22,7 +22,9 @@ require(not re.search(r"git\s+clone|xboard:update|artisan\s+migrate|network=host
 for pattern in ("**", "**/.git", "**/.git/**", "**/.env", "**/.env.*", "**/local-review", "**/local-review/**"):
     require(pattern in ignore, "missing context rule: " + pattern)
 require('workflow_dispatch:' in workflow, "manual trigger is required")
-require(not re.search(r"^\s*(push|pull_request|pull_request_target|schedule):\s*$", workflow, re.M), "do not run on push before quota review")
+require(not re.search(r"^\s*(pull_request|pull_request_target|schedule):\s*$", workflow, re.M), "unexpected automatic trigger")
+require("if: ${{ github.event_name == 'workflow_dispatch' }}" in workflow, "push must never execute a build job")
+require("      - .github/workflows/checkout-build.yml" in workflow, "push registration must be limited to workflow edits")
 require('persist-credentials: false' in workflow, "checkout must not persist credentials")
 require('ref: ${{ github.sha }}' in workflow, "checkout must pin the workflow commit")
 require('context: .' in workflow, "build must use the path context")

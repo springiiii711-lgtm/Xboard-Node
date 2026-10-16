@@ -35,3 +35,5 @@ Go/Alpine 使用版本标签，未声明核验过的固定镜像 digest，后续
 `origin` 为自己账号的独立私有仓库，`upstream` 为 `cedar2025/Xboard-Node`；保留 Git 历史。后续在分支中 fetch/merge 上游并审查冲突，保留禁止发布条件、隔离测试和版本检查，不强制覆盖，不临时公开仓库。
 
 上游 README 声明 MPL-2.0，但当前快照根目录没有 LICENSE 文件；本次未补造许可证文本或认定再分发权利，正式发布前需确认。依赖也有各自许可证。
+
+新建独立仓库首次推送时，GitHub 未注册仅含手动事件的工作流。为完成注册，增加仅匹配该 workflow 文件的 push 事件；`validate` job 强制要求 `workflow_dispatch`，因此 push 只注册流程并显示 skipped，不执行 runner。实际构建仍必须手动触发。
