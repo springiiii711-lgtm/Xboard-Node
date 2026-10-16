@@ -32,3 +32,6 @@ internal/tracker/tracker_bench_test.go
 cmd/xboard-node-bench-compare
 cmd/xboard-node-bench
 .env
+
+# Local inspection, dependency caches, and reports
+/local-review/

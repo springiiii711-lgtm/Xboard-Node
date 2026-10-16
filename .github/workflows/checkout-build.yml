@@ -1,0 +1,57 @@
+name: Checkout build - no publication
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+
+concurrency:
+  group: checkout-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up compatible Go from go.mod
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Validate workflow and checkout
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          python3 ci/validate.py
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          go run -mod=readonly ./ci/check-workflow.go .github/workflows/checkout-build.yml .github/workflows/ci.yml
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Test and build current checkout image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ci/Dockerfile
+          target: runtime
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: local/xboard-node-checkout:${{ github.sha }}
+          build-args: |
+            SOURCE_REVISION=${{ github.sha }}
+      - name: Offline version check and local packaging
+        run: |
+          image="local/xboard-node-checkout:$GITHUB_SHA"
+          docker run --rm --network none "$image" -v
+          docker image save "$image" --output "$RUNNER_TEMP/xboard-node-image.tar"
+          sha256sum "$RUNNER_TEMP/xboard-node-image.tar"
+          echo 'No node service started; image remains on the temporary runner only.'

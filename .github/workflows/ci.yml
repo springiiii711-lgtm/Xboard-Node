@@ -12,6 +12,7 @@ env:
 
 jobs:
   test:
+    if: ${{ vars.ENABLE_UPSTREAM_WORKFLOW == 'true' && github.repository == 'cedar2025/Xboard-Node' }}
     name: Test
     runs-on: ubuntu-latest
     steps:
@@ -20,7 +21,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.7'
+          go-version-file: go.mod
           cache: true
 
       - name: Run tests
@@ -43,7 +44,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.7'
+          go-version-file: go.mod
           cache: true
 
       - name: Build
