@@ -11,6 +11,9 @@ COPY . .
 FROM source AS test
 # These packages parse synthetic files and count in-memory traffic; no listeners.
 RUN --network=none go test -mod=readonly -count=1 ./internal/config ./internal/tracker
+# Panel regression uses synthetic transports and loopback WebSocket fixtures only.
+# The build network namespace has no external connectivity.
+RUN --network=none go test -mod=readonly -count=1 -timeout=45s ./internal/panel -run 'TestSecurity|TestGetConfig|TestGetUsers'
 
 FROM test AS build
 ARG TARGETOS=linux
