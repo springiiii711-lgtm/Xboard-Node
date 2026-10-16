@@ -34,4 +34,6 @@ Actions 不上传 artifacts、build record 或持久缓存。镜像保存在私�
 - [包访问控制与仓库关联](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
 - [GitHub Packages 计费](https://docs.github.com/en/billing/concepts/product-billing/github-packages)
 
-包关联核验以仓库 API 返回的不可变 repository ID 为准，并要求包元数据中的 repository.id 相同；可选的 full_name 如返回也必须一致。这样可处理不同令牌返回的精简元数据，不能接受未关联或关联其他仓库的包。
+2026-10-16 的实际 Actions 调用确认：短期令牌返回的 package 数据没有关联仓库 ID。现有账户登录独立核实了两组固定身份：Xboard 的 repository ID `1422070089` / package ID `15963085`，Xboard-Node 的 repository ID `1422070217` / package ID `15963168`。这些 ID 不是凭证。
+
+工作流必须匹配上述不可变包 ID、仓库 ID、包名、所有者及 private 状态。若 API 返回关联仓库字段，它也必须一致；字段省略时仅允许已核实的固定包 ID，并在结果中明确标记需独立复核关联。包被删除、重建、无法访问或出现冲突时均停止，不能创建替代包。每次发布后使用已有账户登录独立查询包的实时仓库关联，记录在本地验证报告中；工作流本身不声称观察到了省略的关联字段。该流程不支持任意新包，也不向 Actions 注入长期凭证。

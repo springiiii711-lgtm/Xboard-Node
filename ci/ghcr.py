@@ -17,6 +17,13 @@ import urllib.request
 
 OWNER = 'springiiii711-lgtm'
 TARGETS = {f'{OWNER}/Xboard': 'xboard', f'{OWNER}/Xboard-Node': 'xboard-node'}
+# Independently reviewed with the existing owner's login on 2026-10-16.
+# These are immutable, non-secret IDs of the two existing private packages.
+# GITHUB_TOKEN's package projection omits repository metadata in actual runs.
+PACKAGE_BINDINGS = {
+    f'{OWNER}/Xboard': {'repository_id': 1422070089, 'package_id': 15963085},
+    f'{OWNER}/Xboard-Node': {'repository_id': 1422070217, 'package_id': 15963168},
+}
 DIGEST = re.compile(r'sha256:[0-9a-f]{64}')
 
 
@@ -31,7 +38,7 @@ def context(repository, sha):
     package = TARGETS[repository]
     return {'repository': repository, 'sha': sha, 'package': package,
             'image': f'ghcr.io/{OWNER}/{package}', 'tag': f'sha-{sha}',
-            'source': f'https://github.com/{repository}'}
+            'source': f'https://github.com/{repository}', **PACKAGE_BINDINGS[repository]}
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -57,6 +64,7 @@ def api(path, missing_ok=False):
 
 
 def validate_repository(data, ctx):
+    require(data.get('id') == ctx['repository_id'], 'Canonical repository ID mismatch')
     require(data.get('full_name') == ctx['repository'], 'Repository identity mismatch')
     require(data.get('private') is True and data.get('visibility') == 'private', 'Repository must remain private')
     require(data.get('fork') is False, 'Expected the independent private repository')
@@ -66,16 +74,19 @@ def validate_package(data, ctx):
     require(data.get('name') == ctx['package'] and data.get('package_type') == 'container', 'Package identity mismatch')
     require(data.get('owner', {}).get('login') == OWNER, 'Package owner mismatch')
     require(data.get('visibility') == 'private', 'Package is not private; do not change visibility automatically')
-    linked = data.get('repository') or {}
-    expected_id = ctx.get('repository_id')
-    require(isinstance(expected_id, int) and expected_id > 0, 'Canonical repository ID is missing')
-    require(linked.get('id') == expected_id,
-            f"Package repository ID mismatch: received {linked.get('id')!r}, expected {expected_id}; stop without changing access")
-    # Installation-token responses may omit optional full_name. The repository
-    # ID comes from an independent private-repository API check and is immutable.
-    if linked.get('full_name'):
-        require(linked['full_name'].lower() == ctx['repository'].lower(),
-                f"Package repository name conflicts with verified ID: {linked['full_name']}")
+    require(data.get('id') == ctx['package_id'],
+            'Package ID differs from the independently verified package; stop without replacing it')
+    linked = data.get('repository')
+    if linked is not None:
+        require(isinstance(linked, dict) and linked.get('id') == ctx['repository_id'],
+                'Package repository ID conflicts with the verified binding; stop without changing access')
+        if linked.get('full_name'):
+            require(linked['full_name'].lower() == ctx['repository'].lower(),
+                    'Package repository name conflicts with the verified binding')
+    # Missing repository metadata is accepted only for the pinned package ID.
+    # Independently recheck the live repository association with the owner's
+    # existing login after publication; never add a PAT to this workflow.
+
 
 
 def tagged_digest(versions, tag):
@@ -90,11 +101,9 @@ def tagged_digest(versions, tag):
 def package_state(ctx):
     repository = api('/repos/' + ctx['repository'])
     validate_repository(repository, ctx)
-    ctx['repository_id'] = repository['id']
     path = f"/users/{OWNER}/packages/container/{ctx['package']}"
     package = api(path, missing_ok=True)
-    if package is None:
-        return None, ''
+    require(package is not None, 'Pinned package is missing or inaccessible; stop without creating a replacement')
     validate_package(package, ctx)
     versions = []
     for page in range(1, 11):
@@ -174,13 +183,13 @@ def main():
         require(package is not None and digest, 'Published package/tag has not become visible; inspect state before retrying')
     output({'image': ctx['image'], 'tag': ctx['tag'], 'digest': digest})
     if args.mode in ('state', 'published'):
-        print(json.dumps({'package': ctx['package'], 'visibility': package.get('visibility') if package else 'not-created', 'existing_digest': digest, 'source_sha': ctx['sha']}))
+        print(json.dumps({'package': ctx['package'], 'visibility': package.get('visibility') if package else 'not-created', 'existing_digest': digest, 'source_sha': ctx['sha'], 'package_id': ctx['package_id'], 'repository_link_check': 'api-repository-id' if package and package.get('repository') is not None else 'pinned-package-id; independent association review required'}))
         return
     require(DIGEST.fullmatch(args.digest) and digest == args.digest, 'Package tag and requested digest differ')
     reference = f"{ctx['image']}@{digest}"
     image_id = check_image(ctx, reference, digest)
     verify_anonymous_denied(reference)
-    evidence = {'package_url': package['html_url'], 'visibility': package['visibility'], 'repository': ctx['repository'], 'linked_repository_id': ctx['repository_id'], 'source_sha': ctx['sha'], 'tag_reference': f"{ctx['image']}:{ctx['tag']}", 'digest_reference': reference, 'digest': digest, 'image_id': image_id, 'authenticated_pull': 'passed on a fresh runner', 'anonymous_manifest_access': 'denied', 'offline_runtime': 'passed'}
+    evidence = {'package_url': package['html_url'], 'visibility': package['visibility'], 'repository': ctx['repository'], 'expected_repository_id': ctx['repository_id'], 'package_id': ctx['package_id'], 'repository_link_check': 'api-repository-id' if package.get('repository') is not None else 'pinned-package-id; independent association review required', 'source_sha': ctx['sha'], 'tag_reference': f"{ctx['image']}:{ctx['tag']}", 'digest_reference': reference, 'digest': digest, 'image_id': image_id, 'authenticated_pull': 'passed on a fresh runner', 'anonymous_manifest_access': 'denied', 'offline_runtime': 'passed'}
     print(json.dumps(evidence, indent=2))
     Path(os.environ['RUNNER_TEMP'], 'ghcr-verification.json').write_text(json.dumps(evidence, indent=2) + '\n', encoding='utf-8')
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as stream:
