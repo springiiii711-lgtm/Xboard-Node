@@ -1,6 +1,6 @@
 # 私有 GHCR 发布与认证拉取
 
-此流程仅发布到 `ghcr.io/springiiii711-lgtm/xboard-node`，源码仓库为独立私有仓库 `springiiii711-lgtm/Xboard-Node`。只允许从 `dev` 手动触发；push 事件仅用于注册 workflow，job 不执行。原 `checkout-build.yml` 仍是纯构建验证，原上游发布流程仍关闭。
+此流程仅发布到 `ghcr.io/springiiii711-lgtm/xboard-node`，源码仓库为独立私有仓库 `springiiii711-lgtm/Xboard-Node`。只允许从 `dev` 手动触发；push 事件仅用于注册 workflow，job 不执行。`checkout-build.yml` 仍是纯构建验证，已停用的原上游发布工作流已移除。
 
 ## 发布流程
 

@@ -17,6 +17,10 @@ def require(condition, message):
     if not condition:
         raise SystemExit("FAIL: " + message)
 
+retired_workflow = 'docker-publish.yml' if panel else 'ci.yml'
+require(not (root / '.github/workflows' / retired_workflow).exists(),
+        'retired upstream workflow must stay removed: ' + retired_workflow)
+
 require("COPY . ." in instructions, "build must use the supplied checkout")
 require(not re.search(r"git\s+clone|xboard:update|artisan\s+migrate|network=host", instructions), "unexpected remote clone, migration, or host network")
 for pattern in ("**", "**/.git", "**/.git/**", "**/.env", "**/.env.*", "**/local-review", "**/local-review/**"):
@@ -42,13 +46,11 @@ if panel:
     require('RUN --network=none sh ci/run-tests.sh' in dockerfile, "tests must run offline")
     entrypoint = '\n'.join(line for line in (root / 'ci/entrypoint.sh').read_text().splitlines() if not line.lstrip().startswith('#'))
     require(not re.search(r'xboard:update|artisan\s+migrate', entrypoint), "entrypoint must not update")
-    require('ENABLE_UPSTREAM_WORKFLOW' in (root / '.github/workflows/docker-publish.yml').read_text(), "legacy publishing is not gated")
     json.loads((root / 'composer.lock').read_text())
 else:
     version = re.search(r"^go\s+(\d+\.\d+)", (root / 'go.mod').read_text(), re.M).group(1)
     require('golang:' + version + '-alpine' in dockerfile, "Go image must match go.mod")
     require('GOTOOLCHAIN=local' in dockerfile, "do not silently fetch another Go toolchain")
     require('go-version-file: go.mod' in workflow, "Actions Go must follow the module")
-    require('ENABLE_UPSTREAM_WORKFLOW' in (root / '.github/workflows/ci.yml').read_text(), "legacy workflow is not gated")
     require('CMD ["-v"]' in dockerfile, "node image must default to version output only")
 print('PASS: checkout inputs, exclusion rules, pinned actions, offline smoke checks, and no-publication policy')

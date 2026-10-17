@@ -15,14 +15,14 @@
 ```sh
 python3 ci/validate.py
 go test -mod=readonly -count=1 ./internal/config ./internal/tracker
-go run -mod=readonly ./ci/check-workflow.go .github/workflows/checkout-build.yml .github/workflows/ci.yml
+go run -mod=readonly ./ci/check-workflow.go .github/workflows/*.yml
 docker buildx build --target runtime -f ci/Dockerfile --load -t local/xboard-node-checkout .
 docker run --rm --network none local/xboard-node-checkout -v
 ```
 
 选取的 config/tracker 测试覆盖配置解析、校验、热加载检测及连接/流量计数，使用临时文件和内存数据。它们不验证真实协议连接、内核性能或面板联调；本次不运行会监听端口的服务/集成测试。编译包含完整节点源码，版本来源写入镜像 label 和 `-v` 输出。
 
-根 Dockerfile 保留上游入口，验证必须使用 `-f ci/Dockerfile`。上游 `ci.yml` 的入口测试 job 加了默认关闭变量与原仓库身份双重条件，其依赖 job 在私有副本全部跳过；同时修正旧工作流 Go 版本以读取 `go.mod`，便于后续合并。
+根 Dockerfile 保留上游入口，验证必须使用 `-f ci/Dockerfile`。此前始终跳过的上游 `ci.yml` 已移除；有效 Go/安装器回归和私有发布仍由两个保留工作流执行，YAML 校验现在解析全部现存工作流。工作流归属、用途及依赖见 [工作流说明](../.github/WORKFLOWS.zh-CN.md)。
 
 ## Actions 和交付边界
 
