@@ -5,10 +5,13 @@
 下面是一个已经发布及独立拉取验证的固定版本示例。日常安装以自己后台生成命令中的 digest 为准，安装器不内置默认版本，升级必须显式指定：
 
 ```text
-ghcr.io/springiiii711-lgtm/xboard-node@sha256:4e032ad8a4728396eee7a89a724df1b13a8668b0a979de10f408ce0d2a27aaf8
+ghcr.io/springiiii711-lgtm/xboard-node@sha256:e1bc5486d5db54b87abd88231b084a216226a0d0f3f2aedf418a81e0b3064094
 ```
 
-对应源码 `8f0850e6290e41f76980bea9939ba24830d1c6e6`，平台 `linux/amd64`。安装器拒绝 latest、仅 SHA tag、其他仓库和不完整 digest。以后采用新镜像前应先验证发布、拉取、来源及运行契约，再显式更新面板 `PRIVATE_NODE_IMAGE`。本地修改安装器不自动发布镜像，也不改变已经发布的镜像。
+对应源码 `654b41364559d25667db208a2f41db08d123c5e6`，平台 `linux/amd64`。安装器拒绝 latest、仅 SHA tag、其他仓库和不完整 digest。以后采用新镜像前应先验证发布、拉取、来源及运行契约，再显式更新面板 `PRIVATE_NODE_IMAGE`。本地修改安装器不自动发布镜像，也不改变已经发布的镜像。
+
+
+本次安全修复镜像的 [CI](https://github.com/springiiii711-lgtm/Xboard-Node/actions/runs/38983233062) 与 [私有发布、独立固定 digest 拉取及匿名拒绝验证](https://github.com/springiiii711-lgtm/Xboard-Node/actions/runs/38985583196) 均已通过。安装说明的后续提交只更新版本元数据，不重新构建或发布镜像；镜像来源仍是上述完整源码提交。本次未部署节点、配置服务器认证或创建凭证。
 
 ## 运行边界
 
@@ -56,7 +59,7 @@ sudo docker login ghcr.io --username YOUR_GITHUB_USERNAME
 先用任何电脑可运行的离线预览查看配置，`--dry-run` 不读取 Token、不调用 Docker/网络、不写文件：
 
 ```sh
-python3 install.py install --panel https://panel.example.com --machine-id 1 --image ghcr.io/springiiii711-lgtm/xboard-node@sha256:4e032ad8a4728396eee7a89a724df1b13a8668b0a979de10f408ce0d2a27aaf8 --dry-run
+python3 install.py install --panel https://panel.example.com --machine-id 1 --image ghcr.io/springiiii711-lgtm/xboard-node@sha256:e1bc5486d5db54b87abd88231b084a216226a0d0f3f2aedf418a81e0b3064094 --dry-run
 ```
 
 日后完成分发、认证和部署确认后，在目标服务器执行自己后台复制的命令。命令只含面板 HTTPS 地址、机器编号和固定 digest；从后台查看机器 Token，在安装器隐藏提示中输入。此 Token 用于连接面板，与 GHCR 登录凭证不同。非交互场景仅提供 `--token-stdin`，由已有机密管理机制向标准输入传入，不能直接在命令中 echo 明文。
