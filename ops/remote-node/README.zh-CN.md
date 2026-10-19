@@ -2,11 +2,13 @@
 
 此目录实现官方风格的远程安装入口，使用本仓库自行编译的 xboard-node / xbctl，支持 Linux amd64、arm64 和原生 systemd，不要求 Docker。安装命令只传入 HTTPS 面板地址与机器编号；面板机器 Token 在目标终端隐藏输入，仍用于面板与节点之间的认证。
 
-## 当前交付状态
+## 发布和启用
 
-代码与隔离测试可以在私有仓库完成。仓库尚未公开或 Release 尚未提供完整资产时，匿名下载会明确失败，不会索取 GitHub 令牌或回退到上游程序。面板的 `REMOTE_NODE_INSTALL_ENABLED` 默认关闭；只有完成公开审查和真实匿名交付验证后才能启用。仅生成脚本或通过隔离测试不代表公共 URL 已可用。
+在 dev 分支手动运行 `ghcr-publish.yml`，选择 `public-native`，即可自动构建、测试并发布完整提交 SHA 对应的 Release，无需登记版本号。流程只接受已公开的本仓库，使用当前作业的短期令牌；不改变仓库可见性。源码包包含实际链接依赖、许可证及离线重建脚本，发布前逐字节核对两种架构的全部四个程序。最后一步从公共地址匿名下载并校验。
 
-未来完成公开交付后的短命令形态（此处不是已上线声明）：
+面板在公开交付验证完成后启用此入口，也可通过 `REMOTE_NODE_INSTALL_ENABLED=false` 暂停。仓库不公开或 Release 资产不完整时，匿名下载明确失败，不索取 GitHub 令牌或回退到上游程序。以成功的发布工作流和 Release 为交付依据；正式面板更新和真实节点安装需管理员手动执行。
+
+安装命令（替换面板地址和机器编号）：
 
 ```bash
 bash -o pipefail -c 'curl -qfsSL --proto "=https" --proto-redir "=https" https://github.com/springiiii711-lgtm/Xboard-Node/releases/latest/download/install.sh | sudo bash -s -- --panel "$1" --machine-id "$2"' -- \
