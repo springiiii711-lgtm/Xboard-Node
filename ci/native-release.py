@@ -92,13 +92,21 @@ def publish(directory, revision):
 
 
 def verify(revision, digest):
+    require(bool(re.fullmatch(r'[0-9a-f]{40}', revision)), 'Expected a full existing release source SHA')
     require(bool(re.fullmatch(r'[0-9a-f]{64}', digest)), 'Expected archive SHA256')
     validate_repository(api('/repos/' + REPOSITORY), context(REPOSITORY, revision))
+    print('Private repository identity verified.', flush=True)
     bootstrap = module('bootstrap')
     with tempfile.TemporaryDirectory(prefix='native-release-verify-') as temporary:
         directory = Path(temporary)
-        bootstrap.GitHub(os.environ['GH_TOKEN']).download(revision, digest, directory / 'bundle.zip')
-        bootstrap.unpack(directory / 'bundle.zip', directory)
+        try:
+            bootstrap.GitHub(os.environ['GH_TOKEN']).download(revision, digest, directory / 'bundle.zip')
+            bootstrap.unpack(directory / 'bundle.zip', directory)
+        except bootstrap.Failure as error:
+            # These are fixed installer messages, never upstream response bodies,
+            # signed URLs, token values or raw HTTP exception strings.
+            raise RuntimeError('Private native download verification: ' + str(error)) from None
+        print('Private archive download and SHA256 verified.', flush=True)
         manifest = json.loads((directory / 'manifest.json').read_text())
         validate_manifest(manifest, revision)
         for arch in ('amd64', 'arm64'):
@@ -124,6 +132,7 @@ if __name__ == '__main__':
     p.add_argument('action', choices=['publish', 'verify'])
     p.add_argument('--directory', type=Path)
     p.add_argument('--archive-sha256')
+    p.add_argument('--source-revision', help='Existing release SHA for read-only verification only')
     a = p.parse_args()
     try:
         revision = os.environ.get('GITHUB_SHA', '')
@@ -132,9 +141,10 @@ if __name__ == '__main__':
                 'Native publication runs only in the manually dispatched private dev workflow')
         require(subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() == revision, 'Checkout differs')
         if a.action == 'publish':
+            require(not a.source_revision, 'Publication source must be the current checkout')
             publish(a.directory, revision)
         else:
-            verify(revision, a.archive_sha256 or '')
+            verify(a.source_revision or revision, a.archive_sha256 or '')
     except Exception as error:
         print(str(error) if isinstance(error, RuntimeError) else 'Native release operation failed; no private response printed.', file=sys.stderr)
         sys.exit(1)

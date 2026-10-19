@@ -10,7 +10,15 @@ name: Publish private node artifacts
         description: Native binaries by default; Docker remains an explicit compatibility option
         type: choice
         default: native
-        options: [native, docker, both]
+        options: [native, docker, both, verify-native]
+      source_revision:
+        description: Full existing native release SHA (verify-native only)
+        type: string
+        required: false
+      archive_sha256:
+        description: Expected existing archive SHA256 (verify-native only)
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -167,7 +175,7 @@ jobs:
 
   native-verify:
     needs: native-publish
-    if: ${{ github.event_name == 'workflow_dispatch' && needs.native-publish.result == 'success' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && github.repository == 'springiiii711-lgtm/Xboard-Node' && github.ref == 'refs/heads/dev' && (needs.native-publish.result == 'success' || inputs.target == 'verify-native') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -181,8 +189,9 @@ jobs:
       - name: Verify private download with a fresh read-only job token
         env:
           GH_TOKEN: ${{ github.token }}
-          ARCHIVE_SHA256: ${{ needs.native-publish.outputs.archive_sha256 }}
-        run: python3 -B ci/native-release.py verify --archive-sha256 "$ARCHIVE_SHA256"
+          ARCHIVE_SHA256: ${{ inputs.target == 'verify-native' && inputs.archive_sha256 || needs.native-publish.outputs.archive_sha256 }}
+          RELEASE_SOURCE: ${{ inputs.target == 'verify-native' && inputs.source_revision || github.sha }}
+        run: python3 -B ci/native-release.py verify --source-revision "$RELEASE_SOURCE" --archive-sha256 "$ARCHIVE_SHA256"
 
   verify-pull:
     needs: publish

@@ -13,6 +13,13 @@ REV = 'a' * 40
 
 
 class NativePublicationTests(unittest.TestCase):
+    def test_existing_release_verification_requires_immutable_inputs(self):
+        for revision, digest in [('dev', 'a' * 64), ('a' * 40, ''), ('a' * 40, 'latest')]:
+            with self.subTest(revision=revision, digest=digest), patch.object(app, 'api') as api:
+                with self.assertRaises(RuntimeError):
+                    app.verify(revision, digest)
+                api.assert_not_called()
+
     def test_systemd_ci_fixture_cannot_start_node_or_use_network(self):
         fixture_spec = importlib.util.spec_from_file_location('native_fixture', Path(__file__).with_name('native-service-check.py'))
         fixture = importlib.util.module_from_spec(fixture_spec)
