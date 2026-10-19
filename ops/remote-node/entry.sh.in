@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Self-contained installer template. Generate with ci/remote-package.py.
+set +x
+set -Eeuo pipefail
+umask 077
+
+prepare_host() {
+  test "$(uname -s)" = Linux || { echo '需要 Linux。' >&2; return 1; }
+  case "$(uname -m)" in x86_64|amd64|aarch64|arm64) ;; *) echo '仅支持 amd64/arm64。' >&2; return 1 ;; esac
+  local verify=0 arg
+  for arg in "$@"; do test "$arg" != --verify-only || verify=1; done
+  if test "$verify" = 0; then
+    test "$(id -u)" = 0 || { echo '请使用 sudo/root 执行安装。' >&2; return 1; }
+    test -d /run/systemd/system && command -v systemctl >/dev/null || { echo '需要运行中的 systemd。' >&2; return 1; }
+  fi
+  if ! command -v python3 >/dev/null || ! python3 -c 'import ssl,sys; sys.exit(sys.version_info < (3,9) or not ssl.create_default_context().get_ca_certs())' >/dev/null 2>&1; then
+    test "$verify" = 0 || { echo '只校验模式需要预先安装 Python 3.9+ 和 CA 证书。' >&2; return 1; }
+    test -r /etc/os-release || { echo '无法识别系统。' >&2; return 1; }
+    . /etc/os-release
+    case "$ID" in
+      debian|ubuntu) apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y python3 ca-certificates ;;
+      centos|rhel|rocky|almalinux|fedora)
+        if command -v dnf >/dev/null; then dnf install -y python3 ca-certificates
+        else yum install -y python3 ca-certificates; fi ;;
+      *) echo '请先安装 Python 3.9+ 和 CA 证书。' >&2; return 1 ;;
+    esac
+  fi
+  python3 -c 'import ssl,sys; sys.exit(sys.version_info < (3,9) or not ssl.create_default_context().get_ca_certs())' || { echo '需要带 TLS 支持的 Python 3.9+。' >&2; return 1; }
+}
+
+main() {
+  if test "${1:-}" = --help || test "${1:-}" = -h; then
+    echo '用法：sudo bash install.sh --panel https://面板地址 --machine-id 机器编号'
+    echo '只校验：bash install.sh --verify-only；不需要 GitHub 令牌，安装时隐藏输入面板机器 Token。'
+    return
+  fi
+  # Reject unsupported credential-bearing arguments before dependency changes.
+  local args=("$@")
+  while test "$#" -gt 0; do
+    case "$1" in
+      --panel|--machine-id) test "$#" -ge 2 || { echo '参数缺少值。' >&2; return 2; }; shift 2 ;;
+      --verify-only) shift ;;
+      *) echo '未知参数；不要把 Token 放进命令。' >&2; return 2 ;;
+    esac
+  done
+  set -- "${args[@]}"
+  prepare_host "$@"
+  python3 -I -B - "$@" <<'XBOARD_PYTHON_END'
+# BEGIN GENERATED PYTHON
+raise SystemExit('请先用 ci/remote-package.py 生成完整安装脚本。')
+# END GENERATED PYTHON
+XBOARD_PYTHON_END
+}
+
+# Execute only after Bash has parsed the complete function and Python payload.
+main "$@"

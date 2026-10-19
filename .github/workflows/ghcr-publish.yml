@@ -1,4 +1,4 @@
-name: Publish private node artifacts
+name: Publish node artifacts
 "on":
   # Registration only; both jobs require an explicitly dispatched run.
   push:
@@ -7,10 +7,10 @@ name: Publish private node artifacts
   workflow_dispatch:
     inputs:
       target:
-        description: Native binaries by default; Docker remains an explicit compatibility option
+        description: Public native release after visibility review; legacy private modes remain explicit
         type: choice
-        default: native
-        options: [native, docker, both, verify-native]
+        default: public-native
+        options: [public-native, native, docker, both, verify-native]
       source_revision:
         description: Full existing native release SHA (verify-native only)
         type: string
@@ -33,6 +33,84 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  public-native:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'springiiii711-lgtm/Xboard-Node' && github.ref == 'refs/heads/dev' && inputs.target == 'public-native' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout exact reviewed source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Require already public repository without changing visibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ci/public-native-release.py --check-only
+      - name: Set up matching Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Test installers and publication boundaries
+        run: |
+          python3 -B ci/validate.py
+          python3 -B -m unittest discover -s ops/private-node/tests -p 'test_*.py' -v
+          python3 -B -m unittest discover -s ops/remote-node -p 'test_*.py' -v
+          python3 -B -m unittest discover -s ci -p 'test_native*.py' -v
+          go mod download
+          go mod verify
+          GOPROXY=off go test -mod=readonly -count=1 ./cmd/xbctl ./internal/config ./internal/tracker
+          GOPROXY=off go test -mod=readonly -count=1 -timeout=45s ./internal/panel -run 'TestSecurity|TestGetConfig|TestGetUsers'
+          GOPROXY=off go run -mod=readonly ./ci/check-workflow.go .github/workflows/*.yml
+      - name: Build exact source for both architectures
+        env:
+          GOPROXY: 'off'
+        run: |
+          python3 -B ci/native-build.py --source-revision "$GITHUB_SHA" --output "$RUNNER_TEMP/native"
+          sudo apt-get update -qq
+          sudo apt-get install -y qemu-user
+          python3 -B ci/native-smoke.py --directory "$RUNNER_TEMP/native" --source-revision "$GITHUB_SHA"
+      - name: Exercise isolated systemd with no real node or external network
+        env:
+          CI_SAFE_NATIVE_TESTS: '1'
+        run: sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,GITHUB_EVENT_NAME,GITHUB_REPOSITORY,GITHUB_SHA,RUNNER_TEMP,CI_SAFE_NATIVE_TESTS python3 -B ci/native-service-check.py --directory "$RUNNER_TEMP/native"
+      - name: Prepare installer and corresponding source with linked dependencies
+        env:
+          GOPROXY: 'off'
+        run: |
+          python3 -B ci/remote-package.py --directory "$RUNNER_TEMP/native" --output "$RUNNER_TEMP/remote-native"
+          python3 -B ci/remote-check.py --directory "$RUNNER_TEMP/remote-native"
+          python3 -B ci/source-package.py --directory "$RUNNER_TEMP/native" --output "$RUNNER_TEMP/remote-native/xboard-node-source-$GITHUB_SHA.tar.gz"
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          out = Path(os.environ['RUNNER_TEMP']) / 'remote-native'
+          licenses = Path('ops/remote-node/licenses')
+          (out / 'LICENSES.txt').write_bytes(b'Xboard Node and linked dependencies: see corresponding source archive for original notices.\n\n' + (licenses / 'MPL-2.0.txt').read_bytes() + b'\n\n' + (licenses / 'GPL-3.0.txt').read_bytes())
+          names = sorted(p.name for p in out.iterdir() if p.name != 'SHA256SUMS')
+          (out / 'SHA256SUMS').write_text(''.join(hashlib.sha256((out / n).read_bytes()).hexdigest() + '  ' + n + '\n' for n in names), encoding='ascii')
+          PY
+      - name: Rebuild offline from corresponding source and compare all binaries
+        run: |
+          mkdir "$RUNNER_TEMP/source-rebuild"
+          tar -xzf "$RUNNER_TEMP/remote-native/xboard-node-source-$GITHUB_SHA.tar.gz" -C "$RUNNER_TEMP/source-rebuild"
+          bash "$RUNNER_TEMP/source-rebuild/rebuild.sh"
+          for name in xboard-node-linux-amd64 xboard-node-linux-arm64 xbctl-linux-amd64 xbctl-linux-arm64; do
+            cmp "$RUNNER_TEMP/native/$name" "$RUNNER_TEMP/source-rebuild/rebuilt/$name"
+          done
+      - name: Publish tested complete release using only this job token
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ci/public-native-release.py --directory "$RUNNER_TEMP/remote-native"
+      - name: Download installer anonymously and verify latest native package without installation
+        run: |
+          curl -qfsSL --proto '=https' --proto-redir '=https' --output "$RUNNER_TEMP/anonymous-install.sh" "https://github.com/springiiii711-lgtm/Xboard-Node/releases/download/native-$GITHUB_SHA/install.sh"
+          cmp "$RUNNER_TEMP/remote-native/install.sh" "$RUNNER_TEMP/anonymous-install.sh"
+          bash "$RUNNER_TEMP/anonymous-install.sh" --verify-only
+
   publish:
     if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'springiiii711-lgtm/Xboard-Node' && github.ref == 'refs/heads/dev' && (inputs.target == 'docker' || inputs.target == 'both') }}
     runs-on: ubuntu-24.04

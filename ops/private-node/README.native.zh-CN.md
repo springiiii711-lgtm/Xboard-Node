@@ -1,3 +1,5 @@
+> 新的匿名短命令入口见 `ops/remote-node/README.zh-CN.md`。本文件保留旧私有下载模式说明；新入口不索取 GitHub 下载令牌，服务安装事务仍复用本目录 native.py。
+
 # 私有原生安装
 
 节点目标不需要 Docker。后台远程命令下载经过 SHA256 固定的引导程序，隐藏输入 GitHub 下载授权后获取固定提交的私有 Release，校验完整 ZIP，再自动识别 Linux amd64/arm64、安装 systemd 服务。机器 Token 在另一个隐藏提示中输入；两个 Token 均不出现在命令参数或安装日志。GitHub 下载授权不会写入目标机配置，机器 Token 只保存在 root 专用的 `/etc/xboard-node/config.yml`（0600，目录0700）。

@@ -68,3 +68,9 @@ Legacy single-panel config is fully compatible. Appending bindings auto-migrates
 ## License
 
 MPL-2.0.
+
+## Maintained native installer
+
+This fork builds its own Linux amd64/arm64 binaries. See [the short remote installer](ops/remote-node/README.zh-CN.md) for publication status, SHA256 checks, hidden panel authentication and isolated tests. No production deployment runs during CI.
+
+Project source files retain MPL-2.0 terms. Linked sing-box and mieru components use GPLv3-or-later; public native distributions include corresponding node/dependency sources, original notices, full license texts and an offline rebuild script. See `ops/remote-node/licenses`.
