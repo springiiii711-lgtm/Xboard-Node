@@ -19,6 +19,7 @@ API = 'https://api.github.com/repos/' + REPOSITORY
 FILES = {'manifest.json', 'native.py', 'bootstrap.py', 'README.native.zh-CN.md',
          'xboard-node-linux-amd64', 'xboard-node-linux-arm64', 'xbctl-linux-amd64', 'xbctl-linux-arm64'}
 MAX_ARCHIVE = 512 * 1024 * 1024
+MAX_TOKEN_LENGTH = 16384
 
 
 class Failure(Exception):
@@ -37,7 +38,10 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class GitHub:
     def __init__(self, token, opener=None):
-        require(bool(re.fullmatch(r'[A-Za-z0-9_]{16,512}', token)), 'Invalid download authorization format.')
+        # Treat installation/job tokens as opaque Bearer values (RFC 6750).
+        # Their shape and length are not the same as the panel machine token.
+        require(16 <= len(token) <= MAX_TOKEN_LENGTH
+                and bool(re.fullmatch(r'[A-Za-z0-9._~+/-]+=*', token)), 'Invalid download authorization format.')
         self.token = token
         self.opener = opener or urllib.request.build_opener(NoRedirect())
 
@@ -133,7 +137,7 @@ def main():
         print('Native bootstrap: architecture detected on target; no token read, download, write or service action.')
         return
     require(sys.platform == 'linux' and os.geteuid() == 0, 'Run on Linux with sudo/root.')
-    token = sys.stdin.readline(514).rstrip('\r\n')
+    token = sys.stdin.readline(MAX_TOKEN_LENGTH + 2).rstrip('\r\n')
     with tempfile.TemporaryDirectory(prefix='xboard-native-') as temporary:
         directory = Path(temporary)
         api = GitHub(token)

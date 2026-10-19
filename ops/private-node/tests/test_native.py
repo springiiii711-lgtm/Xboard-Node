@@ -251,6 +251,14 @@ class NativeTests(unittest.TestCase):
 
 
 class DownloadTests(unittest.TestCase):
+    def test_opaque_bearer_formats_and_header_injection_rejection(self):
+        for token in ['synthetic_' + 'a' * 1200 + '.b-c_d~e+f/g==', 'SYNTHETIC_GITHUB_TOKEN_123456789']:
+            self.assertEqual(bootstrap.GitHub(token).token, token)
+        for token in ['short', 'a' * (bootstrap.MAX_TOKEN_LENGTH + 1), 'a' * 20 + '\r\nX-Test: injected',
+                      'a' * 20 + '"', 'a' * 20 + '\\', 'a' * 20 + ' ', 'a' * 20 + '\x00', 'a' * 20 + '=mid']:
+            with self.subTest(token_kind='invalid'), self.assertRaises(bootstrap.Failure):
+                bootstrap.GitHub(token)
+
     def test_cross_host_redirect_never_forwards_authorization(self):
         calls = []
         class Opener:

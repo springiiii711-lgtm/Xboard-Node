@@ -24,6 +24,8 @@ python3 -B -m unittest discover -s ops/private-node/tests -p 'test_*.py' -v
 
 发布完成后必须把 `source_revision`、`bootstrap_sha256`、`archive_sha256` 三个非敏感值同步到面板的 `node_deployment` 配置。未发布前面板原生入口明确报“原生发布尚未配置”，不能伪装成已有可安装版本。发布源码和产物不会自动更新线上配置。
 
+重新检查已有版本可在同一 `ghcr-publish.yml` 选择 `verify-native`，填写完整 `source_revision` 和已知 `archive_sha256`。它只运行只读下载验证，不重新构建、上传或改动 Release。下载授权按 RFC 6750 的 Bearer 字符集校验，支持更长的不透明短期令牌；机器 Token 使用独立规则。换行、引号、反斜杠和控制字符始终拒绝。
+
 ## 新服务器上的体验与权限
 
 后台复制命令不要求预置 `/opt` 文件，不让用户选择架构或 Docker。命令会检查 Linux，必要时通过已识别发行版包管理器安装 Python 3、curl、CA 证书；Python 要求3.9+，不安装 Docker，不更改防火墙或证书。遇到不支持的包管理器或过旧 Python 时明确退出，不能据发行版名称承诺兼容所有旧版本。
