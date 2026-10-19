@@ -91,6 +91,27 @@ class FakeSystemd:
         self.enabled = True
 
 
+class SystemdStartTests(unittest.TestCase):
+    def test_new_inactive_unit_does_not_require_reset_failed(self):
+        systemd = native.Systemd()
+        with patch.object(systemd, 'run', side_effect=['inactive', '', '']) as run:
+            systemd.start()
+        self.assertEqual([call.args[0][1] for call in run.call_args_list], ['show', 'enable', 'restart'])
+
+    def test_failed_unit_is_reset_before_retry(self):
+        systemd = native.Systemd()
+        with patch.object(systemd, 'run', side_effect=['failed', '', '', '']) as run:
+            systemd.start()
+        self.assertEqual([call.args[0][1] for call in run.call_args_list], ['show', 'reset-failed', 'enable', 'restart'])
+
+    def test_reset_failure_blocks_retry(self):
+        systemd = native.Systemd()
+        with patch.object(systemd, 'run', side_effect=['failed', native.Failure('reset failed')]) as run:
+            with self.assertRaises(native.Failure):
+                systemd.start()
+        self.assertEqual(run.call_count, 2)
+
+
 class NativeTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

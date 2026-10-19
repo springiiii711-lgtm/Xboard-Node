@@ -33,6 +33,25 @@ class FixtureSystemd(native.Systemd):
         self.revision = revision
         self.failures = 0
 
+    def run(self, args, allowed=(0,)):
+        try:
+            return super().run(args, allowed)
+        except native.Failure:
+            # This guarded fixture only starts sleep/false, never a node. Print
+            # fixed status fields before rollback removes the failed unit.
+            print('Fixture operation failed:', ' '.join(args), flush=True)
+            subprocess.run(['systemctl', 'show', native.SERVICE,
+                            '--property=LoadState,ActiveState,SubState,Result,ExecMainStatus'], check=False)
+            raise
+
+    def stable(self):
+        try:
+            super().stable()
+        except native.Failure:
+            subprocess.run(['systemctl', 'show', native.SERVICE,
+                            '--property=LoadState,ActiveState,SubState,Result,ExecMainStatus,NRestarts'], check=False)
+            raise
+
     def version(self, path, program, revision):
         # Both fixture releases use the actual CI-built binary; only fixture metadata differs.
         super().version(path, program, self.revision)

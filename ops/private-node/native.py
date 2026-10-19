@@ -146,7 +146,12 @@ class Systemd:
         self.run(['systemctl', 'daemon-reload'])
 
     def start(self):
-        self.run(['systemctl', 'reset-failed', SERVICE])
+        # A newly written inactive unit may not be loaded yet; reset-failed does
+        # not load it and can fail before the first start. Failed units remain
+        # loaded and need their failure/start-limit counters cleared for retry.
+        state = self.run(['systemctl', 'show', SERVICE, '--property=ActiveState', '--value'])
+        if state == 'failed':
+            self.run(['systemctl', 'reset-failed', SERVICE])
         self.run(['systemctl', 'enable', SERVICE])
         self.run(['systemctl', 'restart', SERVICE])
 
