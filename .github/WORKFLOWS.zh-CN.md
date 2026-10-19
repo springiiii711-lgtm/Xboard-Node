@@ -18,3 +18,12 @@
 当前实际执行的 config/tracker/panel Go 回归、安装器测试、容器演练及发布门禁全部保留。原上游全仓 make test/arm64/二进制 Release 路径此前未在当前私有工作流执行，本次不声称新增这些覆盖。
 
 `ci/validate.py` 改为要求遗留文件不存在；`checkout-build.yml` 和本地验证命令改用 `.github/workflows/*.yml`，不会继续读取已删除文件。没有改动权限、测试命令、镜像源码或已发布 digest，也不因此重发镜像。历史提交、运行记录和镜像保留。
+
+## 2026-10-19 原生链补齐（待批准推送）
+
+仍保留上述两个工作流，不恢复失效的上游自动发布入口：
+
+- checkout-build 增加原生 job，按官方矩阵构建 Linux amd64/arm64 的 node 和 xbctl，校验 ELF 与源码版本，QEMU 验证 arm64 版本命令；不上传或发布。
+- ghcr-publish 增加 target=native/docker/both，默认 native。原生 job 使用短期 contents:write 发布固定 native-<SHA> 私有 Release；独立 contents:read job 重新下载、核验 SHA256/来源并确认匿名访问拒绝。原有 GHCR 流程仅在 docker/both 选择时运行。
+- 原生脚本和服务不依赖 Docker；CI 使用 QEMU 只为验证 ARM64 的离线版本命令。新发布代码未在本地调用远程写入接口。
+- 原生发行包同时带两种架构，安装端自动检测，不要求用户选择。详细边界见 ops/private-node/README.native.zh-CN.md。

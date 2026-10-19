@@ -381,7 +381,21 @@ func runBindAdd(mode string, args []string) error {
 	return nil
 }
 
+func rejectPrivateUpgrade(installRoot string) error {
+	for _, name := range []string{"private-native.json", "private-native-owner.json", "private-native-pending.json"} {
+		if _, err := os.Stat(filepath.Join(installRoot, name)); err == nil {
+			return errors.New("private native installation: upgrade with the pinned private installer command from the panel; upstream downloads are disabled")
+		} else if !os.IsNotExist(err) {
+			return errors.New("cannot verify private installation state; refusing upstream upgrade")
+		}
+	}
+	return nil
+}
+
 func runUpgrade(args []string) error {
+	if err := rejectPrivateUpgrade(defaultInstallRoot); err != nil {
+		return err
+	}
 	if err := ensureRoot("upgrade"); err != nil {
 		return err
 	}

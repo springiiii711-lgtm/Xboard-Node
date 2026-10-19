@@ -1,3 +1,5 @@
+> 2026-10-19：已在现有工作流中补齐原生矩阵，详见 [原生安装说明](../ops/private-node/README.native.zh-CN.md)。以下“仅 amd64 / 无原生产物”的描述是原 Docker 链历史边界；新 native job 不发布，私有 Release 由 ghcr-publish 的 native 选项负责。
+
 # 节点源码的隔离构建
 
 本目录用于验证当前 checkout 能构建为镜像；不运行节点服务、不生成用户凭据、不读取真实配置、不开放网络端口。镜像默认只输出版本然后退出。

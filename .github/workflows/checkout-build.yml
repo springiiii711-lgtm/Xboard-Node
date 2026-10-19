@@ -17,6 +17,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  native:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Go from go.mod
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Native installer and publication guard regression
+        run: |
+          python3 -B -m unittest discover -s ops/private-node/tests -p 'test_*.py' -v
+          python3 -B -m unittest discover -s ci -p 'test_native*.py' -v
+      - name: Fetch locked dependencies and build both upstream native targets
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          go mod download
+          go mod verify
+          GOPROXY=off go test -mod=readonly -count=1 ./cmd/xbctl
+          GOPROXY=off python3 -B ci/native-build.py --source-revision "$GITHUB_SHA" --output "$RUNNER_TEMP/native"
+      - name: Offline native amd64 and emulated arm64 version checks
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y qemu-user
+          python3 -B ci/native-smoke.py --directory "$RUNNER_TEMP/native" --source-revision "$GITHUB_SHA"
+          echo 'Both native architectures built; version commands only. No service, publication or deployment.'
+      - name: Exercise real systemd with isolated disposable sleep fixtures
+        env:
+          CI_SAFE_NATIVE_TESTS: '1'
+        run: sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,GITHUB_EVENT_NAME,GITHUB_REPOSITORY,GITHUB_SHA,RUNNER_TEMP,CI_SAFE_NATIVE_TESTS python3 -B ci/native-service-check.py --directory "$RUNNER_TEMP/native"
   validate:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04

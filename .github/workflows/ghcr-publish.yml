@@ -1,10 +1,16 @@
-name: Publish private GHCR image
+name: Publish private node artifacts
 "on":
   # Registration only; both jobs require an explicitly dispatched run.
   push:
     paths:
       - .github/workflows/ghcr-publish.yml
   workflow_dispatch:
+    inputs:
+      target:
+        description: Native binaries by default; Docker remains an explicit compatibility option
+        type: choice
+        default: native
+        options: [native, docker, both]
 
 permissions:
   contents: read
@@ -20,7 +26,7 @@ concurrency:
 
 jobs:
   publish:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'springiiii711-lgtm/Xboard-Node' && github.ref == 'refs/heads/dev' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'springiiii711-lgtm/Xboard-Node' && github.ref == 'refs/heads/dev' && (inputs.target == 'docker' || inputs.target == 'both') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:
@@ -106,6 +112,77 @@ jobs:
       - name: Remove temporary registry authentication
         if: always()
         run: docker logout ghcr.io
+
+  native-publish:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'springiiii711-lgtm/Xboard-Node' && github.ref == 'refs/heads/dev' && (inputs.target == 'native' || inputs.target == 'both') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    outputs:
+      archive_sha256: ${{ steps.release.outputs.archive_sha256 }}
+      bootstrap_sha256: ${{ steps.release.outputs.bootstrap_sha256 }}
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Go from go.mod
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Test native installer, publication guards and Go regressions
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          python3 -B ci/validate.py
+          python3 -B -m unittest discover -s ops/private-node/tests -p 'test_*.py' -v
+          python3 -B -m unittest discover -s ci -p 'test_native*.py' -v
+          go mod download
+          go mod verify
+          GOPROXY=off go test -mod=readonly -count=1 ./cmd/xbctl ./internal/config ./internal/tracker
+          GOPROXY=off go test -mod=readonly -count=1 -timeout=45s ./internal/panel -run 'TestSecurity|TestGetConfig|TestGetUsers'
+          GOPROXY=off go run -mod=readonly ./ci/check-workflow.go .github/workflows/*.yml
+      - name: Build the complete upstream native matrix
+        env:
+          GOTOOLCHAIN: local
+          GOPROXY: 'off'
+        run: python3 -B ci/native-build.py --source-revision "$GITHUB_SHA" --output "$RUNNER_TEMP/native"
+      - name: Check both native architectures without starting services
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y qemu-user
+          python3 -B ci/native-smoke.py --directory "$RUNNER_TEMP/native" --source-revision "$GITHUB_SHA"
+      - name: Exercise real systemd with isolated disposable sleep fixtures
+        env:
+          CI_SAFE_NATIVE_TESTS: '1'
+        run: sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,GITHUB_EVENT_NAME,GITHUB_REPOSITORY,GITHUB_SHA,RUNNER_TEMP,CI_SAFE_NATIVE_TESTS python3 -B ci/native-service-check.py --directory "$RUNNER_TEMP/native"
+      - name: Publish immutable private native Release with this job token
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ci/native-release.py publish --directory "$RUNNER_TEMP/native"
+
+  native-verify:
+    needs: native-publish
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.native-publish.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout same source for independent verification
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify private download with a fresh read-only job token
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_SHA256: ${{ needs.native-publish.outputs.archive_sha256 }}
+        run: python3 -B ci/native-release.py verify --archive-sha256 "$ARCHIVE_SHA256"
 
   verify-pull:
     needs: publish
